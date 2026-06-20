@@ -1,0 +1,79 @@
+generic,therapeutic_class
+omeprazole,Proton Pump Inhibitor
+ofloxacin,Fluoroquinolone antibiotic
+naproxen,NSAID
+telmisartan,ARB
+metformin,Biguanide antidiabetic
+paracetamol,Analgesic/Antipyretic
+budesonide,Corticosteroid
+levosalbutamol,Beta-2 adrenergic agonist
+amoxicillin,Penicillin antibiotic
+clavulanic acid,Beta-lactamase inhibitor
+clavulanate,Beta-lactamase inhibitor
+ciprofloxacin,Fluoroquinolone antibiotic
+azithromycin,Macrolide antibiotic
+cefixime,Cephalosporin antibiotic
+ceftriaxone,Cephalosporin antibiotic
+cefuroxime,Cephalosporin antibiotic
+doxycycline,Tetracycline antibiotic
+levofloxacin,Fluoroquinolone antibiotic
+metronidazole,Amoebicide/Antibacterial
+nitrofurantoin,Urinary antibacterial
+betahistine,Antivertigo
+gabapentin,Anticonvulsant/Gabapentinoid
+pregabalin,Anticonvulsant/Gabapentinoid
+tramadol,Opioid analgesic
+etizolam,Thienodiazepine (Anxiolytic)
+alprazolam,Benzodiazepine (Anxiolytic)
+clonazepam,Benzodiazepine (Anticonvulsant)
+diazepam,Benzodiazepine
+lorazepam,Benzodiazepine
+pantoprazole,Proton Pump Inhibitor
+rabeprazole,Proton Pump Inhibitor
+domperidone,Antiemetic/Prokinetic
+ranitidine,H2 Receptor Antagonist
+atorvastatin,HMG-CoA reductase inhibitor (Statin)
+rosuvastatin,HMG-CoA reductase inhibitor (Statin)
+amlodipine,Calcium Channel Blocker
+glimepiride,Sulfonylurea antidiabetic
+vildagliptin,DPP-4 inhibitor antidiabetic
+sitagliptin,DPP-4 inhibitor antidiabetic
+teneligliptin,DPP-4 inhibitor antidiabetic
+salbutamol,Beta-2 adrenergic agonist
+ipratropium,Anticholinergic bronchodilator
+montelukast,Leukotriene receptor antagonist
+levocetirizine,Antihistamine
+cetirizine,Antihistamine
+phenylephrine,Decongestant
+chlorpheniramine,Antihistamine
+dextromethorphan,Antitussive
+ambroxol,Mucolytic
+guaifenesin,Expectorant
+bromhexine,Mucolytic
+ibuprofen,NSAID
+aceclofenac,NSAID
+diclofenac,NSAID
+serratiopeptidase,Proteolytic enzyme
+spironolactone,Aldosterone antagonist
+furosemide,Loop diuretic
+hydrochlorothiazide,Thiazide diuretic
+losartan,ARB
+olmesartan,ARB
+ramipril,ACE Inhibitor
+enalapril,ACE Inhibitor
+carvedilol,Beta Blocker
+metoprolol,Beta Blocker
+atenolol,Beta Blocker
+clopidogrel,Antiplatelet
+aspirin,Antiplatelet/NSAID
+thyroxine,Thyroid hormone replacement
+levothyroxine,Thyroid hormone replacement
+calcium,Calcium supplement
+vitamin d3,Vitamin D analogue
+cholecalciferol,Vitamin D analogue
+methylcobalamin,Vitamin B12 analogue
+folic acid,Vitamin B9
+iron,Iron supplement
+carbonyl iron,Iron supplement
+zinc,Mineral supplement
+multivitamin,Nutritional supplement

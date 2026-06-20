@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local Medical Scribe - Phase 2</title>
+    <link rel="stylesheet" href="/static/style.css?v=2">
+</head>
+<body>
+    <div class="layout">
+        <!-- Left Panel: Recording & Transcript -->
+        <div class="panel left-panel">
+            <header>
+                <h1>Medical Scribe <span class="badge">Local Prototype</span></h1>
+                <div class="header-actions">
+                    <button id="metrics-btn" class="btn outline" onclick="openMetrics()">📊 Metrics</button>
+                    <button id="settings-btn" class="btn outline" onclick="openSettings()">⚙️ Profile</button>
+                </div>
+                <div id="status-indicator">Ready</div>
+            </header>
+
+            <div class="controls">
+                <div class="input-group">
+                    <label for="language">Language</label>
+                    <select id="language">
+                        <option value="hi">Hindi (hi)</option>
+                        <option value="mr">Marathi (mr)</option>
+                        <option value="gu">Gujarati (gu)</option>
+                    </select>
+                </div>
+                <div class="consent-group">
+                    <label>
+                        <input type="checkbox" id="consent-checkbox" onchange="toggleRecordingBtn()">
+                        Patient has consented to this consultation being recorded.
+                    </label>
+                </div>
+                
+                <button id="start-btn" class="btn primary" disabled>Start Recording</button>
+                <button id="stop-btn" class="btn danger" disabled>Stop Recording</button>
+            </div>
+
+            <div class="info-panel">
+                <span class="icon">📁</span>
+                <span id="file-path">Transcript will be saved locally.</span>
+            </div>
+            <div class="info-panel" style="margin-top: -10px;">
+                <span class="icon">⏱️</span>
+                <span>Latency Window: 1.0s</span>
+            </div>
+
+            <div class="transcript-container">
+                <h3>Live Transcript</h3>
+                <div id="transcript-box" class="transcript-box">
+                    <p class="placeholder">Select language and click Start Recording...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: SOAP Note -->
+        <div class="panel right-panel">
+            <header class="soap-header">
+                <h2>SOAP Note</h2>
+                <span class="badge warning" id="draft-badge" style="display: none;">Draft — for doctor review</span>
+            </header>
+            
+            <div id="soap-loading" class="soap-loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Generating AI summary... please wait.</p>
+            </div>
+
+            <div id="soap-editor" class="soap-editor" style="display: none;">
+                <div class="patient-details-section">
+                    <h4>Patient Details</h4>
+                    <div class="patient-inputs">
+                        <input type="text" id="patient_name" placeholder="Patient Name">
+                        <input type="text" id="patient_age" placeholder="Age/Sex (e.g. 34/M)" style="width: 140px;">
+                        <input type="date" id="visit_date">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Chief Complaint</label>
+                    <textarea id="chief_complaint" rows="2"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>History</label>
+                    <textarea id="history" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Clinical Findings</label>
+                    <textarea id="clinical_findings" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Diagnosis</label>
+                    <input type="text" id="diagnosis">
+                </div>
+                
+                <div class="form-group">
+                    <label>Medications</label>
+                    <div id="medications-list" class="medications-list">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Advice</label>
+                    <textarea id="advice" rows="3"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>Unstructured Notes</label>
+                    <textarea id="unstructured_notes" rows="3" placeholder="Any extra clinical information..."></textarea>
+                </div>
+                
+                <div class="print-actions">
+                    <button id="print-btn" class="btn primary" disabled onclick="printPrescription()">Print / Save PDF</button>
+                    <p id="print-helper-text" class="helper-text">Confirm all medications to enable printing.</p>
+                    <p id="consultation-metrics" style="font-size: 0.85rem; color: #28a745; margin-top: 5px; display: none; font-weight: 500;">⏱️ Time-to-prescription: <span id="time-to-rx-val">0.0s</span> | 🖱️ Clicks required: <span id="clicks-val">0</span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Print Layout -->
+    <div id="print-prescription" style="display: none;">
+        <div class="rx-header">
+            <div class="rx-clinic">
+                <h2 id="print_doctor_name">Dr. Example Scribe</h2>
+                <p id="print_doctor_qual">MBBS, MD (General Medicine)</p>
+                <p id="print_doctor_reg">Reg No: 123456</p>
+                <p id="print_doctor_council">State Medical Council</p>
+            </div>
+            <div class="rx-contact">
+                <p id="print_clinic_name">Clinic Address Line 1</p>
+                <p id="print_clinic_address">City, State, 123456</p>
+                <p id="print_clinic_phone">Ph: +91 9876543210</p>
+            </div>
+        </div>
+        <hr class="rx-divider">
+        <div class="rx-patient-info">
+            <p><strong>Patient Name:</strong> <span id="print_patient_name"></span></p>
+            <p><strong>Age/Sex:</strong> <span id="print_patient_age"></span></p>
+            <p><strong>Date:</strong> <span id="print_date"></span></p>
+        </div>
+        <hr class="rx-divider">
+        <div class="rx-clinical">
+            <p><strong>Chief Complaint:</strong> <span id="print_cc"></span></p>
+            <p><strong>Clinical Findings:</strong> <span id="print_findings"></span></p>
+            <p><strong>Diagnosis:</strong> <span id="print_diagnosis"></span></p>
+        </div>
+        <div class="rx-symbol">Rx</div>
+        <div class="rx-medications">
+            <table class="rx-table" id="print_meds_table">
+                <thead>
+                    <tr>
+                        <th>Medicine</th>
+                        <th>Dosage</th>
+                        <th>Frequency</th>
+                        <th>Route</th>
+                        <th>Duration</th>
+                    </tr>
+                </thead>
+                <tbody id="print_meds_body">
+                    <!-- Filled by JS -->
+                </tbody>
+            </table>
+        </div>
+        <div class="rx-advice">
+            <p><strong>Advice / Instructions:</strong></p>
+            <p id="print_advice" style="white-space: pre-wrap;"></p>
+        </div>
+        <div class="rx-unstructured-notes" id="print_unstructured_notes_container" style="margin-top: 10px;">
+            <p><strong>Extra Clinical Notes:</strong></p>
+            <p id="print_unstructured_notes" style="white-space: pre-wrap;"></p>
+        </div>
+        <div class="rx-warning-box" id="print_warning_box" style="display: none;">
+            <strong>SCHEDULE H PRESCRIPTION DRUG - WARNING:</strong> To be sold by retail on the prescription of a Registered Medical Practitioner only.
+        </div>
+        <div class="rx-footer">
+            <div class="rx-signature">
+                <p>Signature</p>
+            </div>
+        </div>
+        <div class="rx-system-footer">
+            This is a computer-generated prescription. No physical signature is required.
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal">
+        <div class="modal-content">
+            <h3>Doctor Profile Settings</h3>
+            <div class="form-group">
+                <label>Doctor Name</label>
+                <input type="text" id="setting_doc_name" placeholder="Dr. Jane Doe">
+            </div>
+            <div class="form-group">
+                <label>Qualification</label>
+                <input type="text" id="setting_doc_qual" placeholder="MBBS, MD">
+            </div>
+            <div class="form-group">
+                <label>Registration No.</label>
+                <input type="text" id="setting_doc_reg" placeholder="123456">
+            </div>
+            <div class="form-group">
+                <label>State Medical Council</label>
+                <input type="text" id="setting_doc_council" placeholder="Maharashtra Medical Council">
+            </div>
+            <div class="form-group">
+                <label>Clinic Name</label>
+                <input type="text" id="setting_clinic_name" placeholder="Health Clinic">
+            </div>
+            <div class="form-group">
+                <label>Clinic Address</label>
+                <input type="text" id="setting_clinic_address" placeholder="123 Main St, City">
+            </div>
+            <div class="form-group">
+                <label>Clinic Phone</label>
+                <input type="text" id="setting_clinic_phone" placeholder="+91 9876543210">
+            </div>
+            <div class="modal-actions">
+                <button class="btn primary" onclick="saveSettings()">Save Profile</button>
+                <button class="btn outline" onclick="closeSettings()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Metrics Modal -->
+    <div id="metrics-modal" class="modal">
+        <div class="modal-content">
+            <h3>Usage Metrics</h3>
+            <div id="metrics-loading">Loading metrics...</div>
+            <div id="metrics-content" style="display:none;">
+                <p><strong>Total Consults:</strong> <span id="metric-consults">0</span></p>
+                <p><strong>Avg Edits / Prescription:</strong> <span id="metric-edits">0</span></p>
+                <p><strong>Most Corrected Field:</strong> <span id="metric-field">None</span></p>
+            </div>
+            <div class="modal-actions">
+                <button class="btn outline" onclick="closeMetrics()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js?v=4"></script>
+</body>
+</html>

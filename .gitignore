@@ -1,0 +1,14 @@
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+cloudflared
+cloudflared.tgz
+all_medicine databased.csv
+sessions/
+transcripts/
+data/corrections_log.jsonl
+data/unmatched_drugs_log.jsonl
+.gemini/
+*.wav
+*.mp3

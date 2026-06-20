@@ -1,0 +1,176 @@
+{
+    "_description": "Per-doctor drug name hotlist. Maps common spoken/transliterated drug names to their canonical brand name. Auto-populated from correction logs + manually curated.",
+    "_usage": "Before sending transcript to Gemini, scan for these aliases and replace with canonical names.",
+    
+    "aliases": {
+        "dolo": "Dolo 650",
+        "dolo 650": "Dolo 650",
+        "dolo650": "Dolo 650",
+        "डोलो": "Dolo 650",
+        "crocin": "Crocin 650",
+        "crocin advance": "Crocin Advance",
+        "क्रोसिन": "Crocin 650",
+        
+        "telma": "Telma 40",
+        "telma am": "Telma-AM 40",
+        "telma-am": "Telma-AM 40",
+        "telma am 40": "Telma-AM 40",
+        "टेल्मा": "Telma 40",
+        
+        "glycomet": "Glycomet 500",
+        "glycomet sr": "Glycomet SR 500",
+        "glycomet sr 500": "Glycomet SR 500",
+        "ग्लाइकोमेट": "Glycomet SR 500",
+        "metformin": "Metformin 500",
+        "मेटफॉर्मिन": "Metformin 500",
+        "मेटामॉर्फिन": "Metformin 500",
+        
+        "vertin": "Vertin 8",
+        "vertin 8": "Vertin 8",
+        "vertin 16": "Vertin 16",
+        "वर्टिन": "Vertin 8",
+        
+        "gabapin": "Gabapin 100",
+        "gabapin 100": "Gabapin 100",
+        "gabapin 300": "Gabapin 300",
+        "गैबापिन": "Gabapin 100",
+        "gabapentin": "Gabapentin 100",
+        "capain": "Gabapin 100",
+        
+        "augmentin": "Augmentin 625 Duo",
+        "augmentin 625": "Augmentin 625 Duo",
+        "ऑगमेंटिन": "Augmentin 625 Duo",
+        
+        "azithral": "Azithral 500",
+        "azithral 500": "Azithral 500",
+        "azithromycin": "Azithromycin 500",
+        "एज़िथ्रल": "Azithral 500",
+        
+        "pan d": "Pan D",
+        "pan-d": "Pan D",
+        "pantop d": "Pantop D",
+        "pantoprazole": "Pantoprazole 40",
+        "पैन डी": "Pan D",
+        
+        "shelcal": "Shelcal 500",
+        "shelcal 500": "Shelcal 500",
+        "शेलकैल": "Shelcal 500",
+        
+        "ecosprin": "Ecosprin 75",
+        "ecosprin 75": "Ecosprin 75",
+        "ecosprin av": "Ecosprin AV 75",
+        "aspirin": "Ecosprin 75",
+        "इकोस्प्रिन": "Ecosprin 75",
+        
+        "thyronorm": "Thyronorm 50",
+        "thyronorm 25": "Thyronorm 25",
+        "thyronorm 50": "Thyronorm 50",
+        "थायरोनॉर्म": "Thyronorm 50",
+        
+        "amlong": "Amlong 5",
+        "amlodipine": "Amlodipine 5",
+        "अम्लोंग": "Amlong 5",
+        
+        "telmisartan": "Telmisartan 40",
+        "टेल्मिसार्टन": "Telmisartan 40",
+        
+        "atorvastatin": "Atorvastatin 10",
+        "atorva": "Atorva 10",
+        "एटोर्वा": "Atorva 10",
+        
+        "montair lc": "Montair LC",
+        "montelukast": "Montair LC",
+        "मॉन्टेयर": "Montair LC",
+        
+        "allegra": "Allegra 120",
+        "fexofenadine": "Allegra 120",
+        "एलेग्रा": "Allegra 120",
+        
+        "combiflam": "Combiflam",
+        "कॉम्बिफ्लेम": "Combiflam",
+        
+        "zerodol sp": "Zerodol SP",
+        "zerodol": "Zerodol SP",
+        "ज़ेरोडॉल": "Zerodol SP",
+        
+        "monocef": "Monocef 200",
+        "cefixime": "Cefixime 200",
+        "मोनोसेफ": "Monocef 200",
+        
+        "deriphyllin": "Deriphyllin Retard 150",
+        "डेरिफाइलिन": "Deriphyllin Retard 150",
+        
+        "aciloc": "Aciloc 150",
+        "ranitidine": "Ranitidine 150",
+        "एसिलोक": "Aciloc 150",
+        
+        "ofloxacin": "Ofloxacin 200",
+        "oflox": "Ofloxacin 200",
+        "ओफ्लॉक्स": "Ofloxacin 200",
+        
+        "ciprofloxacin": "Ciprofloxacin 500",
+        "cipro": "Ciprofloxacin 500",
+        "सिप्रो": "Ciprofloxacin 500",
+        
+        "omeprazole": "Omeprazole 20",
+        "omez": "Omez 20",
+        "ओमेज़": "Omez 20",
+        
+        "metrogyl": "Metrogyl 400",
+        "metronidazole": "Metronidazole 400",
+        "मेट्रोजिल": "Metrogyl 400",
+        
+        "amoxicillin": "Amoxicillin 500",
+        "amox": "Amoxicillin 500",
+        "एमॉक्सिसिलिन": "Amoxicillin 500",
+        
+        "levofloxacin": "Levofloxacin 500",
+        "levomac": "Levomac 500",
+        "लिवोफ्लॉक्सासिन": "Levofloxacin 500",
+        
+        "calcium": "Shelcal 500",
+        "कैल्शियम": "Shelcal 500",
+        
+        "multivitamin": "Becosules",
+        "becosules": "Becosules",
+        "बीकोसूल्स": "Becosules",
+        
+        "iron": "Autrin",
+        "autrin": "Autrin",
+        
+        "glycomet gp": "Glycomet GP 2",
+        "glycomet gp 2": "Glycomet GP 2",
+        
+        "glimepride": "Glimepiride 1",
+        "glimepiride": "Glimepiride 1",
+        "ग्लिमेपिराइड": "Glimepiride 1",
+        
+        "insulin": "Insulin",
+        "इन्सुलिन": "Insulin",
+        
+        "losartan": "Losartan 50",
+        "लोसार्टन": "Losartan 50",
+        
+        "enalapril": "Enalapril 5",
+        "एनालाप्रिल": "Enalapril 5",
+        
+        "paracetamol": "Dolo 650",
+        "पैरासिटामोल": "Dolo 650",
+        
+        "ibuprofen": "Brufen 400",
+        "brufen": "Brufen 400",
+        "इबुप्रोफेन": "Brufen 400",
+        
+        "cetirizine": "Cetirizine 10",
+        "cetzine": "Cetzine 10",
+        "सेटिरिज़ीन": "Cetirizine 10",
+        
+        "prednisolone": "Prednisolone 10",
+        "प्रेडनिसोलोन": "Prednisolone 10",
+        
+        "b complex": "Becosules",
+        "vitamin b": "Becosules",
+        "vitamin d": "D3 Must 60K",
+        "vitamin c": "Limcee 500"
+    }
+}

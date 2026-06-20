@@ -106,7 +106,7 @@ def _process_medications(note_json: dict, original_transcript: str = "") -> dict
 
         is_unverified = False
         if (not matches or
-                matches[0]["score"] < 90 or
+                matches[0]["score"] < 95 or
                 matches[0].get("match_type") == "Phonetic" or
                 matches[0]["brand"] == "No reliable match — enter manually"):
             is_unverified = True

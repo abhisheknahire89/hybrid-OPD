@@ -260,7 +260,7 @@ class CSVDrugDatabase(DrugDatabase):
                 if phonetic_boost > 0 and match_info['score'] < 80:
                     match_type = "Phonetic"
 
-            confidence = "high" if score >= 90 else "uncertain — verify"
+            confidence = "high" if score >= 95 else "uncertain — verify"
             
             scored_candidates.append({
                 "brand": drug["brand"],

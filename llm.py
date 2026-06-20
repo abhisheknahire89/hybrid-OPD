@@ -14,50 +14,55 @@ from google.genai import types
 # ─────────────────────────────────────────────────────────────
 SYSTEM_PROMPT = """You are a precise medical-data EXTRACTOR for Indian clinical transcripts. Extract ONLY what is present. Do NOT analyze, elaborate, or invent. Output strict JSON only.
 
-## CRITICAL ANTI-FABRICATION RULE (Read this first)
-You MUST NEVER invent, infer, assume, or guess any medication.
+## CRITICAL ANTI-FABRICATION & SAFETY RULES (Read first)
+1. You MUST NEVER invent, infer, assume, or guess any medication.
 - Only include a drug if the DOCTOR EXPLICITLY said it in the transcript.
 - If you are even slightly unsure whether a drug was actually prescribed (vs. mentioned in history, or not at all), DO NOT include it.
 - It is ALWAYS safer to omit a drug than to invent one. A fabricated drug on a prescription can harm or kill a patient.
 - For each medication, record the EXACT short phrase from the transcript where the doctor prescribed it in the "transcript_phrase" field. If you cannot find a real phrase, you must not include the drug.
+2. DOCTOR REJECTIONS: If the doctor mentions a drug but then explicitly REJECTS, cancels, or decides against it (e.g., "nahi nahi", "nako", "won't work", "instead give", "never mind", "do not give", "abhi nako", "nahi dena hai"), you MUST NOT extract or prescribe it.
+3. VITALS SANITY: Never invent, guess, or estimate vital signs (temperature, blood pressure, pulse, SpO2). If a vital sign is not clearly and explicitly stated by the doctor or patient in the transcript, leave it blank/omit. Flag/blank physiologically impossible values (e.g. temp >110F, BP without two numbers like "120" instead of "120/80").
 
-## LANGUAGE HANDLING (Critical)
+## THIRD-SPEAKER ATTRIBUTION (CRITICAL)
+- Transcripts may contain inputs from multiple speakers (e.g., daughter, relative, companion).
+- You MUST distinguish between symptoms/requests of the PATIENT and those of the COMPANION.
+- Only extract clinical findings, history, diagnosis, and prescriptions for the PATIENT.
+- Do NOT prescribe or list medications for the companion. For example, if a companion mentions their own symptom (e.g. "mala pan acidity hote" or "I also have acidity") or requests a drug for themselves, you MUST NOT list that symptom or drug in the patient's record or prescription.
+
+## LANGUAGE HANDLING & CODE-SWITCHING (Critical)
 The transcript may be in Hindi, Marathi, Gujarati, Hinglish (mixed Hindi+English), or English.
 - Normalize ALL drug names to standard English brand/generic names.
   Examples: 'डोलो' → 'Dolo 650', 'ऑगमेंटिन' → 'Augmentin 625', 'सेटिरिज़ीन' → 'Cetirizine', 'ज़ाइलोमेटाज़ोलिन' → 'Xylometazoline Nasal Spray'
-- Normalize Hinglish numerics: 'teen baar' → TDS, 'do baar' → BD, 'ek baar' → OD, 'raat ko' → HS, 'subah shaam' → BD
-- Hinglish duration: 'saat din' → 7 days, 'paanch din' → 5 days, 'teen din' → 3 days, 'ek hafte' → 1 week
+- Normalize Hinglish numbers to digits: 'do sau' → 200, 'paanch sau' → 500, 'ek' → 1, 'do' → 2, 'teen' → 3, 'paanch' → 5
+- Normalize Hinglish durations: 'saat din' → 7 days, 'paanch din' → 5 days, 'teen din' → 3 days, 'ek hafte' → 1 week
 
-## DRUG EXTRACTION (extract EVERY drug the doctor prescribed)
-- Scan the ENTIRE transcript for every drug the DOCTOR prescribes (not patient history).
-- Include ALL forms: antibiotics, analgesics, nasal sprays, antihistamines, OTC drugs, saline washes, vitamins.
-- Saline nasal spray / nasal saline wash = a medication entry with name 'Saline Nasal Spray'.
-- If a drug is mentioned by multiple names (brand + generic), use the brand name. Include only once.
-- Never skip a drug because its match is uncertain — extract it anyway with confidence="low".
-
-## FREQUENCY VOCABULARY (use these exact standard abbreviations)
-OD = once daily | BD = twice daily | TDS = three times daily | QID = four times daily
-HS = at bedtime | PRN = as needed / as required | SOS = if needed
-BID = twice daily (same as BD) | QHS = at bedtime
-Accept any spoken equivalent (e.g., 'twice a day'→BD, 'three times'→TDS, 'at night'→HS, 'as needed'→PRN)
+## FREQUENCY VOCABULARY (Standardized abbreviations mapping)
+Use the following standard frequency codes based on the spoken words:
+- OD = once daily (e.g., "ek baar", "sakali", "once a day", "daily", "daily ek")
+- BD = twice daily (e.g., "do baar", "subah shaam", "twice daily", "twice a day", "bds", "jevnanantar" where twice daily)
+- TDS = three times daily (e.g., "teen baar", "din me teen baar", "thrice a day", "thrice daily", "tid")
+- QID = four times daily (e.g., "char baar", "four times a day")
+- HS = at bedtime (e.g., "raat ko", "raatri", "sote samay", "night", "qhs")
+- PRN = as needed / as required (e.g., "as needed", "when required")
+- SOS = if needed (e.g., "jarurat padne par", "when dizzy", "only if needed", "sos")
 
 ## ROUTE DEFAULTS
-- Tablets / Capsules → 'Oral' (explicitly_stated: false, unless doctor said 'oral' or 'swallow')
-- Nasal sprays / nasal drops → 'Intranasal'
-- Eye drops → 'Ophthalmic'
-- Ear drops → 'Otic'
-- Creams / ointments → 'Topical'
-- Injections → 'IM' or 'IV' as spoken
-- Inhalation → 'Inhalation'
-Set explicitly_stated: true ONLY if the doctor explicitly said the route. Otherwise false with the inferred value.
+Set these default routes based on the drug form if not explicitly stated by the doctor:
+- Oral: for all tablets, capsules, or oral syrups (unless doctor says 'oral' or 'swallow', set explicitly_stated: false with value "Oral")
+- Intranasal: for nasal sprays and nasal drops
+- Topical: for creams, gels, and ointments
+- Ophthalmic: for eye drops
+- Otic: for ear drops
+- IM / IV: for injections as spoken
+Set explicitly_stated: true ONLY if the doctor explicitly said the route. Otherwise false.
 
 ## FIELD RULES
-1. diagnosis: State the specific clinical diagnosis if the doctor indicates it. E.g., 'Acute Bacterial Sinusitis', not just 'sinusitis'. If unconfirmed, write 'Suspected [X]'.
-2. clinical_findings: List all positive findings mentioned (tenderness, discharge character, fever, duration). Bullet-style, one per line.
-3. advice: Bullet-style list of ALL advice/instructions mentioned (steam inhalation, hydration, complete antibiotic course, return-if conditions). Up to 8 items. One item per line starting with '- '.
-4. history: Concise bullet-style facts (e.g., '- Symptom A for X days'). One fact per line.
-5. unstructured_notes: Capture any clinical context, differential diagnoses, or extra details not fitting above fields.
-6. Doses/Freq/Route/Duration: explicitly_stated: true ONLY if the doctor spoke that value. If inferred from standard practice, set false. If not mentioned at all, set value to null.
+1. diagnosis: State the specific clinical diagnosis if the doctor indicates it. E.g., 'Acute Bacterial Sinusitis', not just 'sinusitis', or 'Diabetes Mellitus' or 'Diabetic Neuropathy'. If unconfirmed, write 'Suspected [X]'. Never output 'None identified' if a clear diagnosis is discussed.
+2. clinical_findings: List all positive findings mentioned. Bullet-style, one per line.
+3. advice: Bullet-style list of ALL advice/instructions mentioned. Up to 8 items. One item per line starting with '- '.
+4. history: Concise bullet-style facts (e.g., '- Patient has diabetic history'). One fact per line.
+5. unstructured_notes: Capture any clinical context.
+6. Doses/Freq/Route/Duration: explicitly_stated: true ONLY if the doctor spoke that value. If inferred from standard practice or default route, set false. If not mentioned at all, set value to null.
 7. Output compact JSON — no markdown, no code fences, no explanatory text.
 
 SCHEMA:
@@ -217,16 +222,65 @@ def _name_in_transcript(drug_name: str, transcript: str) -> bool:
     return False
 
 
+def _is_drug_rejected(med: dict, transcript: str) -> bool:
+    """
+    Check if a drug is explicitly rejected by the doctor in the transcript.
+    Looks for rejection keywords (e.g. nako, nahi nahi, won't work) in a window after the drug name or its primary word.
+    """
+    t_lower = transcript.lower()
+    phrase = med.get("transcript_phrase", "").lower().strip()
+    name = med.get("name", "").lower().strip()
+
+    search_terms = []
+    if phrase:
+        search_terms.append(phrase)
+    if name:
+        search_terms.append(name)
+        # also add first word of name
+        first_word = name.split()[0]
+        if len(first_word) > 3:
+            search_terms.append(first_word)
+
+    # De-duplicate search terms
+    search_terms = list(dict.fromkeys(search_terms))
+
+    rejections = [
+        "nahi nahi", "nako", "won't work", "instead give", "no no", 
+        "abhi nako", "avoid that", "nahi dena", "do not give", "don't give",
+        "nahi de rahe", "cancel that", "drop that"
+    ]
+
+    for term in search_terms:
+        idx = 0
+        while True:
+            pos = t_lower.find(term, idx)
+            if pos == -1:
+                break
+            # check the window of 60 characters following the matched term
+            window = t_lower[pos + len(term) : pos + len(term) + 60]
+            for rej in rejections:
+                if rej in window:
+                    return True
+            idx = pos + 1
+    return False
+
+
 def verify_grounding(medications: list, transcript: str) -> list:
     """
     For each extracted medication, verify it's grounded in the transcript text.
     Returns the medications list with `hallucination_risk` flag added.
-    Medications with no grounding are flagged — NOT silently dropped.
-    The frontend will display them with a red warning badge requiring explicit doctor action.
+    Medications explicitly rejected by the doctor are silently dropped.
+    Medications with no grounding are flagged.
     """
     verified = []
     for med in medications:
         name = med.get("name", "")
+        
+        # Check if drug was rejected
+        if _is_drug_rejected(med, transcript):
+            print(f"[SAFETY] Dropping explicitly rejected drug: '{name}'", flush=True)
+            continue
+            
         phrase = med.get("transcript_phrase", "")
 
         # Check phrase grounding first (most direct evidence)

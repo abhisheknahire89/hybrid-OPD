@@ -12,7 +12,7 @@ import torch
 import numpy as np
 
 from transcriber import IndicConformerTranscriber
-from llm import generate_soap_note, add_to_hotlist
+from llm import generate_soap_note, add_to_hotlist, verify_grounding, scan_for_missed_drugs, get_shortlist_suggestions, update_shortlist
 from drug_db import CSVDrugDatabase
 
 app = FastAPI()
@@ -84,86 +84,118 @@ def is_valid_dosage_strength(val: str) -> bool:
 class TranscriptRequest(BaseModel):
     transcript: str
 
+def _process_medications(note_json: dict, original_transcript: str = "") -> dict:
+    """Shared drug-matching, dosage-resolution, grounding-check, and shortlist-suggestion logic.
+    Modifies note_json in-place and returns it."""
+    if "medications" not in note_json or not isinstance(note_json["medications"], list):
+        return note_json
+
+    # Run grounding verification if original transcript is provided
+    if original_transcript:
+        note_json["medications"] = verify_grounding(note_json["medications"], original_transcript)
+
+    extracted_names = []
+
+    for med in note_json["medications"]:
+        med_name = med.get("name", "")
+        extracted_names.append(med_name)
+
+        # --- DB Matching ---
+        matches = drug_db.find_matches(med_name)
+        med["matches"] = matches
+
+        is_unverified = False
+        if (not matches or
+                matches[0]["score"] < 90 or
+                matches[0].get("match_type") == "Phonetic" or
+                matches[0]["brand"] == "No reliable match — enter manually"):
+            is_unverified = True
+
+        med["is_unverified"] = is_unverified
+
+        # --- Shortlist suggestions (for unverified / garbled drugs) ---
+        shortlist_hints = get_shortlist_suggestions(med_name, limit=2)
+        # Merge with DB suggestions >= 80 (excluding the fallback)
+        db_hints = [
+            {"brand": m["brand"], "score": m["score"], "source": "db"}
+            for m in matches
+            if m["score"] >= 80 and m["brand"] != "No reliable match — enter manually"
+        ]
+        # Shortlist first, then DB hints (dedup)
+        all_hints = shortlist_hints[:]
+        seen_brands = {h["brand"].lower() for h in all_hints}
+        for h in db_hints:
+            if h["brand"].lower() not in seen_brands:
+                all_hints.append(h)
+                seen_brands.add(h["brand"].lower())
+        med["suggestions"] = all_hints[:2]  # max 2 suggestions
+
+        # --- Log unmatched ---
+        if is_unverified and med_name:
+            try:
+                os.makedirs("data", exist_ok=True)
+                log_entry = {"drug_name": med_name, "timestamp": datetime.datetime.now().isoformat()}
+                with open("data/unmatched_drugs_log.jsonl", "a", encoding="utf-8") as f:
+                    f.write(json.dumps(log_entry) + "\n")
+                print(f"[UNMATCHED DRUG LOG] {med_name}", flush=True)
+            except Exception as ex:
+                print(f"[ERROR] Failed to log unmatched drug {med_name}: {ex}", flush=True)
+
+        top_match = matches[0] if (matches and matches[0]["score"] > 0) else None
+
+        # --- Dosage Resolution ---
+        gemini_dosage = med.get("dosage", {})
+        raw_doc_dosage_val = None
+        if isinstance(gemini_dosage, dict):
+            raw_doc_dosage_val = gemini_dosage.get("value")
+
+        displayed_dosage = "Not specified"
+        db_supplied = "None"
+        dosage_explicit = False
+
+        if raw_doc_dosage_val and is_valid_dosage_strength(raw_doc_dosage_val):
+            db_strength = top_match["strength"] if top_match else ""
+            displayed_dosage = preserve_dosage_unit_py(str(raw_doc_dosage_val), db_strength)
+            dosage_explicit = True
+            db_supplied = "None (doctor spoke)"
+        elif top_match and top_match.get("strength"):
+            displayed_dosage = top_match["strength"]
+            dosage_explicit = False
+            db_supplied = top_match["strength"]
+        else:
+            displayed_dosage = "Not specified"
+            dosage_explicit = False
+            db_supplied = "None (empty)"
+
+        med["dosage"] = {"value": displayed_dosage, "explicitly_stated": dosage_explicit}
+
+        print(f"[DOSAGE AUDIT] Med: {med_name} | Raw: {raw_doc_dosage_val} | DB: {db_supplied} | Displayed: {displayed_dosage}", flush=True)
+
+        if matches:
+            top_item = matches[0]
+            print(f"[MATCH] {med_name} -> {top_item['brand']} | Score: {top_item['score']} | Hallucination: {med.get('hallucination_risk', False)}", flush=True)
+        else:
+            print(f"[MATCH] {med_name} -> None | Score: 0", flush=True)
+
+    # Layer 1: scan for possibly missed drugs
+    if original_transcript:
+        note_json["possible_missed_medications"] = scan_for_missed_drugs(
+            original_transcript, extracted_names
+        )
+        print(f"[CONSULT LOG] Extracted: {len(extracted_names)} drugs | Possible missed: {note_json.get('possible_missed_medications', [])}", flush=True)
+
+    return note_json
+
+
 @app.post("/api/generate_note")
 async def generate_note(req: TranscriptRequest):
     t0 = time.time()
     note_json = await generate_soap_note(req.transcript)
-    
-    # Run drug matching and resolve precedence logic
-    if "medications" in note_json:
-        for med in note_json["medications"]:
-            med_name = med.get("name", "")
-            matches = drug_db.find_matches(med_name)
-            med["matches"] = matches
-            
-            is_unverified = False
-            if (not matches or 
-                matches[0]["score"] < 90 or 
-                matches[0].get("match_type") == "Phonetic" or 
-                matches[0]["brand"] == "No reliable match — enter manually"):
-                is_unverified = True
-            
-            med["is_unverified"] = is_unverified
-            
-            if is_unverified and med_name:
-                try:
-                    os.makedirs("data", exist_ok=True)
-                    log_entry = {
-                        "drug_name": med_name,
-                        "timestamp": datetime.datetime.now().isoformat()
-                    }
-                    with open("data/unmatched_drugs_log.jsonl", "a", encoding="utf-8") as f:
-                        f.write(json.dumps(log_entry) + "\n")
-                    print(f"[UNMATCHED DRUG LOG] Logged unmatched drug: {med_name}", flush=True)
-                except Exception as ex:
-                    print(f"[ERROR] Failed to log unmatched drug {med_name}: {ex}", flush=True)
-            
-            top_match = matches[0] if (matches and matches[0]["score"] > 0) else None
-            
-            # Extract doctor dosage from Gemini response
-            gemini_dosage = med.get("dosage", {})
-            raw_doc_dosage_val = None
-            if isinstance(gemini_dosage, dict):
-                raw_doc_dosage_val = gemini_dosage.get("value")
-            
-            displayed_dosage = "Not specified"
-            db_supplied = "None"
-            dosage_explicit = False
-            
-            if raw_doc_dosage_val and is_valid_dosage_strength(raw_doc_dosage_val):
-                # Rule 1: Doctor spoke dosage -> Use the doctor's dosage, preserve unit
-                db_strength = top_match["strength"] if top_match else ""
-                displayed_dosage = preserve_dosage_unit_py(str(raw_doc_dosage_val), db_strength)
-                dosage_explicit = True
-                db_supplied = "None (doctor spoke)"
-            elif top_match and top_match.get("strength"):
-                # Rule 2: Doctor did NOT speak dosage AND DB has standard strength -> Use DB strength as suggestion
-                displayed_dosage = top_match["strength"]
-                dosage_explicit = False
-                db_supplied = top_match["strength"]
-            else:
-                # Rule 3: Neither -> leave blank/flagged
-                displayed_dosage = "Not specified"
-                dosage_explicit = False
-                db_supplied = "None (empty)"
-                
-            # Update the med object with the resolved dosage
-            med["dosage"] = {
-                "value": displayed_dosage,
-                "explicitly_stated": dosage_explicit
-            }
-            
-            # Log dosage audit
-            print(f"[DOSAGE AUDIT] Med: {med_name} | Doctor said (Gemini Raw): {raw_doc_dosage_val} | DB supplied: {db_supplied} | Displayed: {displayed_dosage} | Explicit: {dosage_explicit}", flush=True)
-            
-            if matches:
-                top_match_item = matches[0]
-                print(f"[MATCH DIAGNOSTIC] Raw: {med_name} -> Matched: {top_match_item['brand']} | Score: {top_match_item['score']} | Confidence: {top_match_item['confidence']}", flush=True)
-            else:
-                print(f"[MATCH DIAGNOSTIC] Raw: {med_name} -> Matched: None | Score: 0 | Confidence: uncertain — verify", flush=True)
-            
+    # generate_soap_note already runs verify_grounding + scan_for_missed_drugs internally
+    # Here we run the DB matching + dosage resolution
+    _process_medications(note_json, original_transcript="")  # grounding already done inside llm.py
     t1 = time.time()
-    print(f"[PERF] End-to-End Stop->Note latency: {t1 - t0:.2f} seconds", flush=True)
+    print(f"[PERF] End-to-End latency: {t1 - t0:.2f}s", flush=True)
     return note_json
 
 
@@ -174,91 +206,35 @@ import llm
 async def generate_note_stream(req: TranscriptRequest):
     async def stream_generator():
         accumulated = []
+        normalized_transcript_captured = ""
         try:
             async for text_chunk in llm.generate_soap_note_stream(req.transcript):
+                # Intercept the normalized-transcript sentinel emitted at the end
+                if text_chunk.startswith("\n__NORMALIZED_TRANSCRIPT__:"):
+                    try:
+                        normalized_transcript_captured = json.loads(
+                            text_chunk.split("\n__NORMALIZED_TRANSCRIPT__:", 1)[1]
+                        )
+                    except Exception:
+                        normalized_transcript_captured = req.transcript
+                    continue  # Don't forward this internal sentinel to the client
                 accumulated.append(text_chunk)
                 yield json.dumps({"type": "chunk", "text": text_chunk}) + "\n"
         except Exception as e:
-            print(f"[ERROR] Error in stream_generator: {e}", flush=True)
-            
+            print(f"[ERROR] stream_generator: {e}", flush=True)
+
         full_text = "".join(accumulated)
         try:
             note_json = llm._parse_json_response(full_text)
         except Exception as e:
-            print(f"[ERROR] Failed parsing streamed JSON response: {e}", flush=True)
+            print(f"[ERROR] Failed parsing streamed JSON: {e}", flush=True)
             note_json = llm.EMPTY_FALLBACK
-            
-        # Run drug matching and resolve precedence logic (identical to main.py generate_note)
-        if "medications" in note_json:
-            for med in note_json["medications"]:
-                med_name = med.get("name", "")
-                matches = drug_db.find_matches(med_name)
-                med["matches"] = matches
-                
-                is_unverified = False
-                if (not matches or 
-                    matches[0]["score"] < 90 or 
-                    matches[0].get("match_type") == "Phonetic" or 
-                    matches[0]["brand"] == "No reliable match — enter manually"):
-                    is_unverified = True
-                
-                med["is_unverified"] = is_unverified
-                
-                if is_unverified and med_name:
-                    try:
-                        os.makedirs("data", exist_ok=True)
-                        log_entry = {
-                            "drug_name": med_name,
-                            "timestamp": datetime.datetime.now().isoformat()
-                        }
-                        with open("data/unmatched_drugs_log.jsonl", "a", encoding="utf-8") as f:
-                            f.write(json.dumps(log_entry) + "\n")
-                        print(f"[UNMATCHED DRUG LOG] Logged unmatched drug: {med_name}", flush=True)
-                    except Exception as ex:
-                        print(f"[ERROR] Failed to log unmatched drug {med_name}: {ex}", flush=True)
-                
-                top_match = matches[0] if (matches and matches[0]["score"] > 0) else None
-                
-                # Extract doctor dosage from Gemini response
-                gemini_dosage = med.get("dosage", {})
-                raw_doc_dosage_val = None
-                if isinstance(gemini_dosage, dict):
-                    raw_doc_dosage_val = gemini_dosage.get("value")
-                
-                displayed_dosage = "Not specified"
-                db_supplied = "None"
-                dosage_explicit = False
-                
-                if raw_doc_dosage_val and is_valid_dosage_strength(raw_doc_dosage_val):
-                    db_strength = top_match["strength"] if top_match else ""
-                    displayed_dosage = preserve_dosage_unit_py(str(raw_doc_dosage_val), db_strength)
-                    dosage_explicit = True
-                    db_supplied = "None (doctor spoke)"
-                elif top_match and top_match.get("strength"):
-                    displayed_dosage = top_match["strength"]
-                    dosage_explicit = False
-                    db_supplied = top_match["strength"]
-                else:
-                    displayed_dosage = "Not specified"
-                    dosage_explicit = False
-                    db_supplied = "None (empty)"
-                    
-                med["dosage"] = {
-                    "value": displayed_dosage,
-                    "explicitly_stated": dosage_explicit
-                }
-                
-                # Log dosage audit
-                print(f"[DOSAGE AUDIT] Med: {med_name} | Doctor said (Gemini Raw): {raw_doc_dosage_val} | DB supplied: {db_supplied} | Displayed: {displayed_dosage} | Explicit: {dosage_explicit}", flush=True)
-                
-                if matches:
-                    top_match_item = matches[0]
-                    print(f"[MATCH DIAGNOSTIC] Raw: {med_name} -> Matched: {top_match_item['brand']} | Score: {top_match_item['score']} | Confidence: {top_match_item['confidence']}", flush=True)
-                else:
-                    print(f"[MATCH DIAGNOSTIC] Raw: {med_name} -> Matched: None | Score: 0 | Confidence: uncertain — verify", flush=True)
-                    
+
+        # Safety + drug-matching pass (identical logic to generate_note)
+        _process_medications(note_json, original_transcript=normalized_transcript_captured or req.transcript)
+
         yield json.dumps({"type": "final", "data": note_json}) + "\n"
-        
+
     return StreamingResponse(stream_generator(), media_type="application/x-ndjson")
 
 class CorrectionRequest(BaseModel):
@@ -272,12 +248,30 @@ async def log_correction(req: CorrectionRequest):
     record = req.dict()
     with open("data/corrections_log.jsonl", "a", encoding="utf-8") as f:
         f.write(json.dumps(record) + "\n")
-    
-    # Auto-learn corrections for medications
+
+    # Auto-learn corrections for medications (hotlist alias)
     if req.field_type == "medication":
         add_to_hotlist(req.original_value, req.corrected_value)
-        
+
     return {"status": "ok"}
+
+
+class MedicationConfirmRequest(BaseModel):
+    drug_name: str
+
+@app.post("/api/confirm_medication")
+async def confirm_medication(req: MedicationConfirmRequest):
+    """Called when a doctor confirms a medication. Updates the per-doctor shortlist."""
+    if req.drug_name and req.drug_name.strip():
+        update_shortlist(req.drug_name.strip())
+    return {"status": "ok"}
+
+
+@app.get("/api/shortlist")
+async def get_shortlist():
+    """Returns the doctor's frequently-prescribed drugs, sorted by frequency."""
+    from llm import get_shortlist_drugs
+    return {"drugs": get_shortlist_drugs()}
 
 class SessionRequest(BaseModel):
     patient_info: dict

@@ -49,4 +49,20 @@ This document explains the key dependencies specified in `requirements.txt` and 
 *   **`rapidfuzz` (>=3.0.0)**
     *   *Role*: Fast string-matching library used to compute fuzzy token-sort similarity scores when comparing spoken medication names against the 240k+ records in `indian_medicine_data.csv`.
 *   **`jellyfish` (>=1.0.0)**
-    *   *Role*: Library containing phonetic string matching algorithms. It implements Double Metaphone to find phonetic "sound-alike" matches for spelling corrections.
+    *   *Role*: Provides phonetic string matching (Metaphone, Jaro-Winkler similarity) used in three places: (a) the DB drug matcher's phonetic boost, (b) the per-doctor shortlist suggestion engine, and (c) the anti-hallucination grounding verifier that checks each extracted drug name against the transcript.
+
+---
+
+## 6. Safety & Learning Systems (New)
+
+*   **Anti-Hallucination Grounding (`llm.verify_grounding`)**
+    *   *Role*: After every Gemini extraction, each medication is verified against the raw transcript using exact substring, word-token, and phonetic matching. Drugs with no transcript evidence are flagged `hallucination_risk=true` and displayed with a red badge — they cannot auto-confirm and require explicit doctor review.
+    *   *Data file*: `data/hallucination_log.jsonl` — persistent log of flagged drugs for audit.
+
+*   **Missed Drug Scanner (`llm.scan_for_missed_drugs`)**
+    *   *Role*: After extraction, scans the transcript for drug-indicator words (`mg`, `tablet`, `TDS`, etc.) near un-extracted candidate terms. Returns up to 5 possible missed drug names logged and surfaced in the API response as `possible_missed_medications`.
+
+*   **Per-Doctor Drug Shortlist (`data/doctor_drug_shortlist.json`)**
+    *   *Role*: Learns from every confirmed prescription. When the doctor confirms a drug, `update_shortlist()` increments its count. Future garbled drug names (e.g., "Ajithral") are matched against the shortlist using fuzzy+phonetic scoring — shortlist suggestions (marked ⭐) appear as one-tap Accept buttons on unmatched drug cards.
+    *   *Concurrency*: All shortlist and hotlist writes use `fcntl.LOCK_EX` (POSIX file lock) to prevent race conditions on concurrent API calls.
+    *   *Data file*: `data/doctor_drug_shortlist.json` — JSON map of `{drug_name_lower: {canonical, count}}`.

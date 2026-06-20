@@ -446,11 +446,15 @@ function handleFinalSoapNote(rawData) {
             const durationExplicit = getExplicit(med.duration);
             const durationGuessed = !durationExplicit && durationVal !== "Not specified" && durationVal !== "None identified" && durationVal !== "";
             
+            // Block auto-confirm for hallucination-risk drugs
+            const isHallucinationRisk = !!med.hallucination_risk;
+
             // NEW SAFETY AUTO-CONFIRM LOGIC
-            const canAutoConfirm = 
-                topMatch && 
-                !isNoMatch && 
+            const canAutoConfirm =
+                topMatch &&
+                !isNoMatch &&
                 !med.is_unverified &&
+                !isHallucinationRisk &&
                 dosageVal && dosageVal.trim() !== "" && dosageVal !== "Not specified" && dosageVal !== "None identified" && dosageExplicit && !dosageGuessed &&
                 freqVal && freqVal.trim() !== "" && freqVal !== "Not specified" && freqVal !== "None identified" && freqExplicit && !freqGuessed &&
                 routeVal && routeVal.trim() !== "" && routeVal !== "Not specified" && routeVal !== "None identified" && routeExplicit && !routeGuessed &&
@@ -473,20 +477,28 @@ function handleFinalSoapNote(rawData) {
             medDiv.className = cardClass;
             
             let headerHTML = "";
-            if (isNoMatch) {
-                const suggestions = (med.matches || []).filter(m => m.brand && m.brand !== "No reliable match — enter manually" && m.score >= 80);
-                
+            if (isHallucinationRisk) {
+                // RED: drug not grounded in transcript — requires explicit doctor action
+                headerHTML = `
+                    <div class="med-header" id="med-header-${index}" style="display: flex; align-items: center; flex-wrap: wrap; gap: 8px; background: #fff0f0; border-left: 4px solid #dc3545; padding: 8px;">
+                        <input type="text" class="med-name-input" id="med-name-${index}" value="${med.name || ''}" placeholder="Medication Name" style="font-weight: bold; font-size: 1rem; padding: 4px 8px; border: 1px solid #dc3545; border-radius: 4px; width: 250px;">
+                        <span style="background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; padding: 3px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">🚨 Not found in transcript — verify before confirming</span>
+                    </div>
+                `;
+            } else if (isNoMatch) {
+                // YELLOW: unverified/garbled — use unified suggestions from shortlist+DB
+                const suggestions = (med.suggestions || []).slice(0, 2);
+
                 let suggestionsHTML = "";
                 if (suggestions.length > 0) {
-                    suggestionsHTML = `
-                        <span class="suggestions-container" id="med-suggestions-${index}" style="font-size: 0.85rem; color: #6c757d; margin-left: 12px;">
-                            Did you mean: ${suggestions.map(alt => `
-                                <button type="button" class="suggestion-btn" style="padding: 2px 6px; font-size: 0.8rem; text-decoration: underline; color: #007bff; border: none; background: none; cursor: pointer;" onclick="useSuggestedName(${index}, '${alt.brand.replace(/'/g, "\\'")}')">${alt.brand}</button>
-                            `).join(', ')}?
-                        </span>
-                    `;
+                    const pills = suggestions.map(s => {
+                        const label = s.source === 'shortlist'
+                            ? `⭐ ${s.brand}` : s.brand;
+                        return `<button type="button" class="suggestion-btn" style="padding: 4px 10px; font-size: 0.8rem; border: 1px solid #007bff; color: #007bff; border-radius: 20px; background: #f0f8ff; cursor: pointer; white-space: nowrap;" onclick="useSuggestedName(${index}, '${s.brand.replace(/'/g, "\\'")}')">${label}</button>`;
+                    }).join('');
+                    suggestionsHTML = `<span id="med-suggestions-${index}" style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; font-size:0.8rem; color:#6c757d;">Did you mean: ${pills}</span>`;
                 }
-                
+
                 headerHTML = `
                     <div class="med-header confidence-uncertain" id="med-header-${index}" style="display: flex; align-items: center; flex-wrap: wrap; gap: 8px;">
                         <input type="text" class="med-name-input" id="med-name-${index}" value="${med.name || ''}" placeholder="Medication Name" style="font-weight: bold; font-size: 1rem; padding: 4px 8px; border: 1px solid #ced4da; border-radius: 4px; width: 250px;" ${canAutoConfirm ? 'disabled' : ''}>
@@ -721,7 +733,20 @@ window.confirmMedication = function(index) {
     document.getElementById(`med-confirmed-${index}`).style.display = 'flex';
     document.getElementById(`med-card-${index}`).classList.add('confirmed-state');
     document.getElementById(`med-header-${index}`).className = 'med-header confidence-high';
-    
+
+    // Update per-doctor shortlist (fire-and-forget)
+    const confirmedName = nameInput ? nameInput.value.trim() :
+        (document.getElementById(`med-name-${index}`) ? document.getElementById(`med-name-${index}`).value.trim() : '');
+    const brandEl = document.querySelector(`#med-header-${index} strong`);
+    const finalName = confirmedName || (brandEl ? brandEl.textContent.trim() : '');
+    if (finalName) {
+        fetch('/api/confirm_medication', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({drug_name: finalName})
+        }).catch(err => console.warn('Shortlist update failed:', err));
+    }
+
     checkPrintStatus();
 };
 

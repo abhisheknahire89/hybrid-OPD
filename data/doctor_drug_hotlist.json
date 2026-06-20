@@ -37,9 +37,9 @@
         "gabapentin": "Gabapentin 100",
         "capain": "Gabapin 100",
         
-        "augmentin": "Augmentin 625 Duo",
-        "augmentin 625": "Augmentin 625 Duo",
-        "ऑगमेंटिन": "Augmentin 625 Duo",
+        "augmentin": "Augmentin Duo",
+        "augmentin 625": "Augmentin Duo 625",
+        "ऑगमेंटिन": "Augmentin Duo",
         
         "azithral": "Azithral 500",
         "azithral 500": "Azithral 500",
@@ -154,23 +154,55 @@
         "enalapril": "Enalapril 5",
         "एनालाप्रिल": "Enalapril 5",
         
-        "paracetamol": "Dolo 650",
-        "पैरासिटामोल": "Dolo 650",
-        
+        "paracetamol": "Paracetamol 500",
+        "पैरासिटामोल": "Paracetamol 500",
+        "paracetamol 650": "Dolo 650",
+        "dolo 650 paracetamol": "Dolo 650",
+
         "ibuprofen": "Brufen 400",
         "brufen": "Brufen 400",
         "इबुप्रोफेन": "Brufen 400",
-        
+
         "cetirizine": "Cetirizine 10",
         "cetzine": "Cetzine 10",
         "सेटिरिज़ीन": "Cetirizine 10",
-        
+        "cetirizine 10": "Cetirizine 10",
+
         "prednisolone": "Prednisolone 10",
         "प्रेडनिसोलोन": "Prednisolone 10",
-        
+
         "b complex": "Becosules",
         "vitamin b": "Becosules",
         "vitamin d": "D3 Must 60K",
-        "vitamin c": "Limcee 500"
+        "vitamin c": "Limcee 500",
+
+        "xylometazoline": "Xylometazoline Nasal Spray 0.1%",
+        "xylometazoline nasal spray": "Xylometazoline Nasal Spray 0.1%",
+        "xylo nasal spray": "Xylometazoline Nasal Spray 0.1%",
+        "xylosine": "Xylometazoline Nasal Spray 0.1%",
+        "otrivin": "Otrivin Nasal Spray",
+        "nasivion": "Nasivion Nasal Drops",
+        "ज़ाइलोमेटाज़ोलिन": "Xylometazoline Nasal Spray 0.1%",
+        "zylo nasal spray": "Xylometazoline Nasal Spray 0.1%",
+
+        "saline nasal spray": "Saline Nasal Spray",
+        "saline spray": "Saline Spray",
+        "nasal saline": "Saline Nasal Spray",
+        "nasal wash": "Saline Nasal Spray",
+        "nasal rinse": "Saline Nasal Spray",
+        "saline nasal rinse": "Saline Nasal Spray",
+        "नेज़ल सेलाइन": "Saline Nasal Spray",
+
+        "amoxiclav": "Augmentin Duo 625",
+        "amoxycillin clavulanate": "Augmentin Duo 625",
+        "amoxicillin clavulanate": "Augmentin Duo 625",
+        "amoxicillin-clavulanate": "Augmentin Duo 625",
+        "co-amoxiclav": "Augmentin Duo 625",
+        "augmentin duo": "Augmentin Duo 625",
+        "augmentin 625 duo": "Augmentin Duo 625",
+        "augmentin duo 625": "Augmentin Duo 625",
+        "clavamox": "Augmentin Duo 625",
+        "ऑगमेंटिन": "Augmentin Duo 625",
+        "ऑगमेंटिन 625": "Augmentin Duo 625"
     }
 }

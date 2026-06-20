@@ -415,7 +415,19 @@ function handleFinalSoapNote(rawData) {
             const schHBadge = isSchH ? '<span class="sch-h-badge">⚠️ Schedule H/H1</span>' : '';
             
             // Parse fields
-            const getVal = (field) => field && typeof field === 'object' ? field.value : (field || '');
+            const getVal = (field) => {
+                if (!field) return '';
+                let val = field;
+                if (typeof field === 'object' && field !== null) {
+                    val = field.value;
+                }
+                if (val === null || val === undefined) return '';
+                const valStr = String(val).trim();
+                if (valStr.toLowerCase() === 'null' || valStr.toLowerCase() === 'none' || valStr.toLowerCase() === 'undefined') {
+                    return '';
+                }
+                return valStr;
+            };
             const getExplicit = (field) => field && typeof field === 'object' ? field.explicitly_stated : true;
             
             const dosageVal = getVal(med.dosage);
@@ -644,7 +656,8 @@ window.confirmMedication = function(index) {
     const nameInput = document.getElementById(`med-name-${index}`);
     
     if (nameInput) {
-        if (!nameInput.value.trim()) {
+        const cleanedName = nameInput.value.trim().toLowerCase();
+        if (!nameInput.value.trim() || cleanedName === "null" || cleanedName === "undefined" || cleanedName === "none") {
             nameInput.classList.add('error-border');
             valid = false;
         } else {
@@ -653,7 +666,8 @@ window.confirmMedication = function(index) {
     }
     
     [dosageInput, freqInput, routeInput, durationInput].forEach(el => {
-        if (!el.value.trim() || el.value.trim() === "Not specified") {
+        const cleanedVal = el.value.trim().toLowerCase();
+        if (!el.value.trim() || el.value.trim() === "Not specified" || cleanedVal === "null" || cleanedVal === "undefined" || cleanedVal === "none") {
             el.classList.add('error-border');
             valid = false;
         } else {
@@ -923,13 +937,22 @@ window.printPrescription = function() {
             
             medsArray.push({ name: headerStr, dosage, frequency: freq, route, duration });
             
+            const displayVal = (val) => {
+                if (!val) return '—';
+                const cleaned = String(val).trim();
+                if (cleaned === "" || cleaned.toLowerCase() === "null" || cleaned.toLowerCase() === "undefined" || cleaned.toLowerCase() === "none") {
+                    return '—';
+                }
+                return cleaned;
+            };
+
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><strong>${headerStr}</strong></td>
-                <td>${dosage}</td>
-                <td>${freq}</td>
-                <td>${route}</td>
-                <td>${duration}</td>
+                <td>${displayVal(dosage)}</td>
+                <td>${displayVal(freq)}</td>
+                <td>${displayVal(route)}</td>
+                <td>${displayVal(duration)}</td>
             `;
             tbody.appendChild(tr);
         });
@@ -1219,6 +1242,16 @@ window.restoreSession = function(session) {
             if (medList) {
                 medList.innerHTML = '';
                 hasUnconfirmedOnLoad = false;
+                
+                const cleanRestoredVal = (val) => {
+                    if (val === null || val === undefined) return '';
+                    const valStr = String(val).trim();
+                    if (valStr.toLowerCase() === 'null' || valStr.toLowerCase() === 'undefined' || valStr.toLowerCase() === 'none') {
+                        return '';
+                    }
+                    return valStr;
+                };
+
                 session.medications.forEach((med, index) => {
                     if (!med.isConfirmed) {
                         hasUnconfirmedOnLoad = true;
@@ -1272,10 +1305,10 @@ window.restoreSession = function(session) {
                         ${headerHTML}
                         
                         <div class="med-inputs" id="med-inputs-${index}">
-                            <input type="text" id="med-dosage-${index}" value="${med.dosage}" placeholder="Dosage (e.g. 500mg)" ${med.isConfirmed ? 'disabled' : ''}>
-                            <input type="text" id="med-freq-${index}" value="${med.frequency}" placeholder="Freq (e.g. BD)" ${med.isConfirmed ? 'disabled' : ''}>
-                            <input type="text" id="med-route-${index}" value="${med.route}" placeholder="Route (e.g. Oral)" ${med.isConfirmed ? 'disabled' : ''}>
-                            <input type="text" id="med-duration-${index}" value="${med.duration || ''}" placeholder="Duration (e.g. 5 days)" ${med.isConfirmed ? 'disabled' : ''}>
+                            <input type="text" id="med-dosage-${index}" value="${cleanRestoredVal(med.dosage)}" placeholder="Dosage (e.g. 500mg)" ${med.isConfirmed ? 'disabled' : ''}>
+                            <input type="text" id="med-freq-${index}" value="${cleanRestoredVal(med.frequency)}" placeholder="Freq (e.g. BD)" ${med.isConfirmed ? 'disabled' : ''}>
+                            <input type="text" id="med-route-${index}" value="${cleanRestoredVal(med.route)}" placeholder="Route (e.g. Oral)" ${med.isConfirmed ? 'disabled' : ''}>
+                            <input type="text" id="med-duration-${index}" value="${cleanRestoredVal(med.duration)}" placeholder="Duration (e.g. 5 days)" ${med.isConfirmed ? 'disabled' : ''}>
                         </div>
                         
                         <div class="med-actions" id="med-actions-${index}" style="display: ${initialShowConfirm}">
